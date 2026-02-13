@@ -1,0 +1,51 @@
+# Consilo Local Development Setup
+# Run with: docker-compose up -d
+
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: consilo-db
+    environment:
+      POSTGRES_USER: consilo
+      POSTGRES_PASSWORD: consilo_dev_password
+      POSTGRES_DB: consilo
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U consilo"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Consilo Backend API
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: consilo-api
+    environment:
+      # Database
+      DATABASE_URL: postgresql://consilo:consilo_dev_password@postgres:5432/consilo
+      
+      # Security
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-gAAAAABl_dev_key_replace_in_production_123456789}
+      
+      # CORS (restrict in production)
+      CORS_ORIGINS: "*"
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      # Mount code for hot-reload during development
+      - ./backend/app:/app/app
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8080 --reload
+
+volumes:
+  postgres_data:
